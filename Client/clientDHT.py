@@ -22,7 +22,7 @@ class DHT(threading.Thread):
         self.rLock.release()
         
         while self.running:
-            humidity, temperature = Adafruit_DHT.read(self.DHT_SENSOR, self.DHT_PIN)
+            humidity, temperature = Adafruit_DHT.read_retry(self.DHT_SENSOR, self.DHT_PIN)
         
             if humidity is not None and temperature is not None:
                 self.vLock.acquire()

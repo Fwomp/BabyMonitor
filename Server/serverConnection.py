@@ -48,6 +48,6 @@ class Connection(threading.Thread):
     def register(self, dispatcher):
         if not dispatcher.get_URI() in self.dispatchers:
             self.dispatchers[dispatcher.get_URI()] = dispatcher
-            print("[+] Registered URI: ", dispatcher.get_URI())
+            print("[+] Registered URI:", dispatcher.get_URI())
         else:
-            print("[!] URI already registered: ", dispatcher.get_URI())
+            print("[!] URI already registered:", dispatcher.get_URI())
