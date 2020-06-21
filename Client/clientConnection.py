@@ -1,20 +1,51 @@
+import datetime
+import enum
+import json
 import socket
 import threading
 import time
 
-# Protocol: JSON
+# What if we create a dispatcher? - We register URI's, then we messages come in we check the
+# hash and then dispatch to the handler registered against the URI.
 # message : {
 #    header : {
-#       type : <enum>
+#       type : <string>
+#       time : <float?>
 #       checksum : <string>
 #    }
 #    body : {
 #       if DHT:
 #          temperature : <float>
 #          humidity : <float>
-#          datetime : <float?>
+#          time : <float?>
 #    }
 # }
+
+def __make_message(msg_type, payload):
+    return {
+        "header" : {
+            "type" : msg_type,
+            "time" : datetime.datetime.now().isoformat()
+        },
+        "payload" : payload
+    }
+
+def Make_DHT_Msg(humidity, temperature, time):
+    payload = {
+        "humidity"    : humidity,
+        "temperature" : temperature,
+        "time"        : time
+    }
+    
+    return __make_message("DHT", payload)
+
+def Make_Frame_Msg(frame, time):
+    payload = {
+        "frame" : frame,
+        "time"  : time
+    }
+    
+    return __make_message("Frame", payload)    
 
 class Connection(threading.Thread):
     def __init__(self, S_IP, S_PORT):
@@ -30,14 +61,14 @@ class Connection(threading.Thread):
         self.connected = False
         
         while not self.connected and self.running: 
-            try:
-                print("[*] Connecting to server...")
-                self.socket.connect((self.S_IP, self.S_PORT))
-                self.handle = self.socket.makefile('wb')
-                self.connected = True
-            except:
-                time.sleep(1)
-        
+            #try:
+            print("[*] Connecting to server...")
+            self.socket.connect((self.S_IP, self.S_PORT))
+            self.socket.sendall(json.dumps(Make_DHT_Msg(0, 0, datetime.datetime.now().isoformat())).encode())
+            self.handle = self.socket.makefile('wb')
+            self.connected = True
+            #except:
+            #    time.sleep(1)
         if self.connected:
             print("[*] Connected!")
         

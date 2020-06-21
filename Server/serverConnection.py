@@ -1,6 +1,10 @@
+import json
 import socket
 import threading
 import time
+        
+def verify_data(data):
+    return True
 
 class Connection(threading.Thread):
     def __init__(self, S_IP, S_PORT):
@@ -13,6 +17,7 @@ class Connection(threading.Thread):
         self.running = False
         self.connected = False
         # TODO: Need to setup re-use address on the socket
+        self.dispatchers = dict()
         
         self.socket.bind((self.S_IP, self.S_PORT))
         self.socket.listen()
@@ -25,12 +30,24 @@ class Connection(threading.Thread):
         
         while self.running:
             if not self.connected:
-                self.client = self.socket.accept()
-                print("[*] New Connection!")
+                client, address = self.socket.accept()
+                print("[*] New Connection: ", address)
                 self.connected = True
             else:
-                time.sleep(2)
+                data = json.loads(client.recv(1024).decode())
+                
+                if verify_data(data) and data['header']['type'] in self.dispatchers:
+                    self.dispatchers[data['header']['type']].dispatch(data['payload'])
+                else:
+                    print("[!] Unknown URI received:", data['header']['type'])
         
     def stop(self):
         print("[-] Stopping Connection")
         self.running = False
+        
+    def register(self, dispatcher):
+        if not dispatcher.get_URI() in self.dispatchers:
+            self.dispatchers[dispatcher.get_URI()] = dispatcher
+            print("[+] Registered URI: ", dispatcher.get_URI())
+        else:
+            print("[!] URI already registered: ", dispatcher.get_URI())
