@@ -61,14 +61,15 @@ class Connection(threading.Thread):
         self.connected = False
         
         while not self.connected and self.running: 
-            #try:
-            print("[*] Connecting to server...")
-            self.socket.connect((self.S_IP, self.S_PORT))
-            self.socket.sendall(json.dumps(Make_DHT_Msg(0, 0, datetime.datetime.now().isoformat())).encode())
-            self.handle = self.socket.makefile('wb')
-            self.connected = True
-            #except:
-            #    time.sleep(1)
+            try:
+                print("[*] Connecting to server...")
+                self.socket.connect((self.S_IP, self.S_PORT))
+                self.socket.sendall(json.dumps(Make_DHT_Msg(0, 0, datetime.datetime.now().isoformat())).encode())
+                self.handle = self.socket.makefile('wb')
+                self.connected = True
+            except:
+                time.sleep(1)
+                
         if self.connected:
             print("[*] Connected!")
         
