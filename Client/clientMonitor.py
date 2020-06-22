@@ -4,9 +4,9 @@ import clientVideo
 import time
 
 if __name__ == "__main__":
-    DHT   = clientDHT.DHT(4,10)
-    VIDEO = clientVideo.Video('VGA', 24)
     CONNECTION = clientConnection.Connection("192.168.1.242",49497)
+    DHT   = clientDHT.DHT(4,10)
+    VIDEO = clientVideo.Video('VGA', 24, CONNECTION)
         
     try:
         CONNECTION.start()

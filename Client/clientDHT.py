@@ -2,6 +2,15 @@ import Adafruit_DHT
 import threading
 import time
 
+def Make_DHT_Msg(humidity, temperature, time):
+    payload = {
+        "humidity"    : humidity,
+        "temperature" : temperature,
+        "time"        : time
+    }
+    
+    return payload
+
 class DHT(threading.Thread):
     def __init__(self, pin, rate):
         threading.Thread.__init__(self)
@@ -32,8 +41,6 @@ class DHT(threading.Thread):
             else:
                 print("[!] DHT Error")
             
-            print("T:", temperature)
-            print("H:", humidity)
             time.sleep(self.rate)
         
     def stop(self):
