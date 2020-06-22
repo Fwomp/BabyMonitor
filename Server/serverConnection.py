@@ -16,9 +16,9 @@ class Connection(threading.Thread):
         self.socket  = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.running = False
         self.connected = False
-        # TODO: Need to setup re-use address on the socket
         self.dispatchers = dict()
         
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((self.S_IP, self.S_PORT))
         self.socket.listen()
         
@@ -34,12 +34,16 @@ class Connection(threading.Thread):
                 print("[*] New Connection: ", address)
                 self.connected = True
             else:
-                data = json.loads(client.recv(1024).decode())
+                try:
+                    data = json.loads(client.recv(2048).decode())
                 
-                if verify_data(data) and data['header']['type'] in self.dispatchers:
-                    self.dispatchers[data['header']['type']].dispatch(data['payload'])
-                else:
-                    print("[!] Unknown URI received:", data['header']['type'])
+                    if verify_data(data) and data['header']['type'] in self.dispatchers:
+                        self.dispatchers[data['header']['type']].dispatch(data['payload'])
+                    else:
+                        print("[!] Unknown URI received:", data['header']['type'])
+                except:
+                    print("[!] Client disconnected!")
+                    self.connected = False
         
     def stop(self):
         print("[-] Stopping Connection")
