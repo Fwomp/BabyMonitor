@@ -4,9 +4,11 @@ import time
 
 def Make_DHT_Msg(humidity, temperature, time):
     payload = {
-        "humidity"    : humidity,
-        "temperature" : temperature,
-        "time"        : time
+        "payload" : {
+            "humidity"    : humidity,
+            "temperature" : temperature,
+            "time"        : time
+        }
     }
     
     return payload

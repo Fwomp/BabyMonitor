@@ -1,17 +1,18 @@
 import datetime
 import enum
-import json
+import pickle
 import socket
+import sys
 import threading
 import time
 
-def make_message(msg_type, payload):
+def make_header(msg_type, payload):
     return {
         "header" : {
-            "type" : msg_type,
-            "time" : datetime.datetime.now().isoformat()
-        },
-        "payload" : payload
+            "time" : datetime.datetime.now().isoformat(),
+            "type" : msg_type.ljust(32, ' '),
+            "size" : len(payload)
+        }
     }
 
 class Connection(threading.Thread):    
@@ -19,25 +20,64 @@ class Connection(threading.Thread):
         threading.Thread.__init__(self)
         self.running = False
         self.rLock   = threading.Lock()
+        self.cLock   = threading.Lock()
+        self.sLock   = threading.Lock()
         self.S_IP    = S_IP
         self.S_PORT  = S_PORT
-        self.socket  = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket  = None
         self.running = False
+        self.connection = None
+        
+    def __isConnected(self):
+        return self.socket is not None
         
     def __connect(self):
-        self.connected = False
-        
-        while not self.connected and self.running: 
-            try:
+        try:
+            self.cLock.acquire()
+            
+            # if we dont currently have a socket
+            if not self.__isConnected():
                 print("[*] Connecting to server...")
-                self.socket.connect((self.S_IP, self.S_PORT))
-                self.handle = self.socket.makefile('wb')
-                self.connected = True
-            except:
-                time.sleep(1)
                 
-        if self.connected:
-            print("[*] Connected!")
+                # create the socket
+                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                
+                # connect the socket to the server
+                self.socket.connect((self.S_IP, self.S_PORT))
+                
+                # create a stream from the socket
+                self.connection = self.socket.makefile('wb')
+                
+            self.cLock.release()
+        except:
+            self.socket.close()
+            self.socket = None
+            self.cLock.release()
+        finally:
+            if self.__isConnected():
+                print("[*] Connected!")
+            
+    def __disconnect(self):
+        try:
+            self.cLock.acquire()
+            
+            # if we have an socket
+            if self.__isConnected():
+                print("[*] Disconnecting from server...")
+                
+                # close the socket
+                self.socket.close()
+                
+                # clear the socket
+                self.socket = None
+        except:
+            print("[!] Something went wrong disconnecting!")
+            
+        finally:
+            if not self.__isConnected():
+                print("[*] Disconnected!")
+                
+            self.cLock.release()
         
         
     def run(self):
@@ -46,14 +86,32 @@ class Connection(threading.Thread):
         self.running = True
         self.rLock.release()
         
-        self.__connect()
-        
-        while self.connected and self.running:
-            time.sleep(2)
-        
+        while self.running:
+            if not self.__isConnected():
+                self.__connect()
+                
+            time.sleep(1)
+            
     def stop(self):
         print("[-] Stopping Connection")
+        self.rLock.acquire()
         self.running = False
+        self.rLock.release()
         
     def send(self, msg_type, payload):
-        self.socket.sendall(json.dumps(make_message(msg_type, payload)).encode())
+        self.cLock.acquire()
+        
+        if self.__isConnected():
+            try:
+                pickled_payload = pickle.dumps(payload)
+                pickled_header  = pickle.dumps(make_header(msg_type, pickled_payload))
+                
+                self.socket.sendall(pickled_header)
+                self.socket.sendall(pickled_payload)
+            except:
+                print("[!] Exception: ", sys.exc_info())
+                print("[!] Error sending message")
+                self.__disconnect()
+                self.cLock.release()
+        
+        self.cLock.release()

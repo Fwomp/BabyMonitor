@@ -1,5 +1,6 @@
-import json
+import pickle
 import socket
+import sys
 import threading
 import time
         
@@ -7,6 +8,14 @@ def verify_data(data):
     return True
 
 class Connection(threading.Thread):
+    def recv_all(self, client, size):
+        buffer = b''
+        
+        while len(buffer) < size:
+            buffer += client.recv(size - len(buffer))
+            
+        return buffer
+    
     def __init__(self, S_IP, S_PORT):
         threading.Thread.__init__(self)
         self.running = False
@@ -31,17 +40,27 @@ class Connection(threading.Thread):
         while self.running:
             if not self.connected:
                 client, address = self.socket.accept()
+                client.settimeout(60.0)
                 print("[*] New Connection: ", address)
                 self.connected = True
-            else:
+            else:                
                 try:
-                    data = json.loads(client.recv(2048).decode())
-                
-                    if verify_data(data) and data['header']['type'] in self.dispatchers:
-                        self.dispatchers[data['header']['type']].dispatch(data['payload'])
+                    # receive and unpickle our 135 byte header
+                    header_data = pickle.loads(self.recv_all(client, 135))
+                    
+                    # receive and unpickle our payload
+                    payload_data = pickle.loads(self.recv_all(client, header_data['header']['size']))
+                        
+                    # get the message type
+                    msg_type = header_data['header']['type'].rstrip()
+                    
+                    # dispatch with the recevied data
+                    if msg_type in self.dispatchers:
+                        self.dispatchers[msg_type].dispatch(payload_data['payload'])
                     else:
-                        print("[!] Unknown URI received:", data['header']['type'])
+                        print("[!] Unknown URI received:", msg_type)
                 except:
+                    print("[!] Exception: ", sys.exc_info())
                     print("[!] Client disconnected!")
                     self.connected = False
         

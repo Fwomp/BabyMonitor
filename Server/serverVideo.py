@@ -1,5 +1,7 @@
 import base64
+import cv2
 import dispatcher
+import numpy as np
 import serverConnection
 import threading
 import time
@@ -31,7 +33,7 @@ class Video(threading.Thread):
             
         def dispatch(self, data):
             self.dLock.acquire()
-            self.frame = (base64.decodestring(data['frame'].encode()), data['time'])
+            self.frame = (data['frame'], data['time'])
             self.dLock.release()
             
         def get_data(self):
@@ -47,12 +49,12 @@ class Video(threading.Thread):
         self.rLock = threading.Lock()
         
         # create dispatchers
-        self.DHT = self.DHT_Dispatcher("DHT")
         self.Frame = self.Frame_Dispatcher("Frame")
+        self.DHT   = self.DHT_Dispatcher("DHT")
         
         # register dispatchers
-        connection.register(self.DHT)
         connection.register(self.Frame)
+        connection.register(self.DHT)
         
     def run(self):
         print("[+] Running Video")
@@ -61,8 +63,14 @@ class Video(threading.Thread):
         self.rLock.release()
         
         while self.running:
-            if not self.Frame.get_data()[0]:
-                time.sleep(1) # Do something
+            frame = self.Frame.get_data()
+            
+            if frame[0] is not None:
+                data = np.fromstring(frame[0], dtype=np.uint8)
+                img = cv2.imdecode(data, flags=1)
+                
+                cv2.imshow("Monitor", img)
+                cv2.waitKey(1)
             else:
                 time.sleep(1) # Delay
         

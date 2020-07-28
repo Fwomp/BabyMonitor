@@ -7,4 +7,5 @@ class Dispatcher:
     
     #@abstractmethod
     def dispatch(self, data):
+        print("[!] Dispatcher for " + self.URI + " not overridden!")
         pass

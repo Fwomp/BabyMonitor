@@ -7,10 +7,14 @@ import threading
 import time
 
 def Make_Frame_Msg(frame, time):
-    return {
-        "frame" : base64.encodestring(frame.read()).decode(),
-        "time"  : time
+    payload = {
+        "payload" : {
+            "frame" : frame,
+            "time"  : time
+        }
     }
+    
+    return payload
 
 class Video(threading.Thread):
     def __init__(self, resolution, framerate, connection):
@@ -21,10 +25,9 @@ class Video(threading.Thread):
         self.framerate = framerate
         self.frame = (io.BytesIO(), datetime.datetime.now().isoformat(), False)
         self.rLock = threading.Lock()
-        self.vLock = threading.Lock()
         
     def run(self):
-        print("[+] Recording Video")
+        print("[+] Recording Video @", self.framerate, "fps")
         self.rLock.acquire()
         self.running = True
         self.rLock.release()
@@ -34,23 +37,18 @@ class Video(threading.Thread):
             print("[*] Waking Camera")
             time.sleep(2.0)
             print("[*] Getting Frames")
+            buffer = io.BytesIO()
                 
             while self.running:
-                # lock the frame handle
-                self.vLock.acquire()
-                
                 # reset the buffer
-                self.frame[0].seek(0)
-                self.frame[0].truncate()
+                buffer.seek(0)
+                buffer.truncate()
                     
                 # take the frame
-                camera.capture(self.frame[0],'jpeg',True)
-                self.frame = (self.frame[0], datetime.datetime.now().isoformat(), True)
+                camera.capture(buffer, 'jpeg', True)
                 
-                # release the frame handle
-                self.vLock.release()
-                
-                self.sendFrame()
+                # send the frame
+                self.sendFrame((buffer, datetime.datetime.now().isoformat()))
                     
     def stop(self):
         print("[-] Stopping Recording Video")
@@ -58,12 +56,8 @@ class Video(threading.Thread):
         self.running = False
         self.rLock.release()
         
-    def sendFrame(self):
-        self.vLock.acquire()
-        frame = self.frame
-        self.vLock.release()
+    def sendFrame(self, frame):
+        frame[0].seek(0)
         
-        if frame[2]:
-            self.connection.send("Frame", Make_Frame_Msg(frame[0], frame[1]))
-        
-        return frame
+        # TODO: this is taking ~0.1 seconds per hit - too slow
+        self.connection.send("Frame", Make_Frame_Msg(frame[0].read(), frame[1]))
