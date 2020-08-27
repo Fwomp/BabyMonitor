@@ -6,12 +6,12 @@ import sys
 import threading
 import time
 
-def make_header(msg_type, payload):
+def make_header(msg_type, payload):    
     return {
         "header" : {
-            "time" : datetime.datetime.now().isoformat(),
+            "time" : datetime.datetime.now().isoformat().ljust(32, ' '),
             "type" : msg_type.ljust(32, ' '),
-            "size" : len(payload)
+            "size" : str(len(payload)).ljust(32, ' ')
         }
     }
 
@@ -20,7 +20,7 @@ class Connection(threading.Thread):
         threading.Thread.__init__(self)
         self.running = False
         self.rLock   = threading.Lock()
-        self.cLock   = threading.Lock()
+        self.cLock   = threading.RLock()
         self.sLock   = threading.Lock()
         self.S_IP    = S_IP
         self.S_PORT  = S_PORT
@@ -29,7 +29,11 @@ class Connection(threading.Thread):
         self.connection = None
         
     def __isConnected(self):
-        return self.socket is not None
+        self.cLock.acquire()
+        connected = self.socket is not None
+        self.cLock.release()
+        
+        return connected
         
     def __connect(self):
         try:
@@ -48,14 +52,15 @@ class Connection(threading.Thread):
                 # create a stream from the socket
                 self.connection = self.socket.makefile('wb')
                 
-            self.cLock.release()
         except:
             self.socket.close()
             self.socket = None
-            self.cLock.release()
+            
         finally:
             if self.__isConnected():
                 print("[*] Connected!")
+                
+            self.cLock.release()
             
     def __disconnect(self):
         try:
@@ -99,19 +104,19 @@ class Connection(threading.Thread):
         self.rLock.release()
         
     def send(self, msg_type, payload):
-        self.cLock.acquire()
-        
-        if self.__isConnected():
+        if self.__isConnected() and self.cLock.acquire(True):            
             try:
                 pickled_payload = pickle.dumps(payload)
                 pickled_header  = pickle.dumps(make_header(msg_type, pickled_payload))
                 
-                self.socket.sendall(pickled_header)
-                self.socket.sendall(pickled_payload)
+                self.connection.write(pickled_header)
+                self.connection.write(pickled_payload)
+                self.connection.flush()
+                
             except:
                 print("[!] Exception: ", sys.exc_info())
                 print("[!] Error sending message")
                 self.__disconnect()
+                
+            finally:
                 self.cLock.release()
-        
-        self.cLock.release()

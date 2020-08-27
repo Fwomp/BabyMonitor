@@ -1,5 +1,6 @@
 import serverConnection
 import serverVideo
+import sys
 import time
 
 if __name__ == "__main__":
@@ -10,12 +11,15 @@ if __name__ == "__main__":
         CONNECTION.start()
         VIDEO.start()
         
-        while True:
+        while VIDEO.getRunning():
             time.sleep(1)
+            
     except KeyboardInterrupt:
         print("[-] Interrupt detected")
         pass
     finally:
         CONNECTION.stop()
         VIDEO.stop()
+        
+        sys.exit()
     

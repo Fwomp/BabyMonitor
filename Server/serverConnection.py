@@ -19,49 +19,61 @@ class Connection(threading.Thread):
     def __init__(self, S_IP, S_PORT):
         threading.Thread.__init__(self)
         self.running = False
-        self.rLock   = threading.Lock()
         self.S_IP    = S_IP
         self.S_PORT  = S_PORT
         self.socket  = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.running = False
         self.connected = False
         self.dispatchers = dict()
+        self.header_size = 175
         
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.settimeout(1.0)
         self.socket.bind((self.S_IP, self.S_PORT))
         self.socket.listen()
         
     def run(self):
         print("[+] Running Connection")
-        self.rLock.acquire()
         self.running = True
-        self.rLock.release()
         
         while self.running:
             if not self.connected:
-                client, address = self.socket.accept()
-                client.settimeout(60.0)
-                print("[*] New Connection: ", address)
-                self.connected = True
+                try:
+                    client, address = self.socket.accept()
+                    client.settimeout(10.0)
+                    print("[*] New Connection: ", address)
+                    self.connected = True
+                except:
+                    pass
             else:                
                 try:
-                    # receive and unpickle our 135 byte header
-                    header_data = pickle.loads(self.recv_all(client, 135))
-                    
-                    # receive and unpickle our payload
-                    payload_data = pickle.loads(self.recv_all(client, header_data['header']['size']))
+                    # check whether we have a full header available
+                    if len(client.recv(self.header_size, socket.MSG_PEEK)):
+                        # receive and unpickle our header
+                        header_data = pickle.loads(self.recv_all(client, self.header_size))
                         
-                    # get the message type
-                    msg_type = header_data['header']['type'].rstrip()
+                        # get the message data
+                        msg_type = header_data['header']['type'].rstrip()
+                        msg_size = int(header_data['header']['size'].rstrip())
                     
-                    # dispatch with the recevied data
-                    if msg_type in self.dispatchers:
-                        self.dispatchers[msg_type].dispatch(payload_data['payload'])
-                    else:
-                        print("[!] Unknown URI received:", msg_type)
+                        # receive and unpickle our payload
+                        payload_data = pickle.loads(self.recv_all(client, msg_size))
+                         
+                        # dispatch with the recevied data
+                        if msg_type in self.dispatchers:
+                            # TODO: Why is the payload increasing in size?
+                            self.dispatchers[msg_type].dispatch(payload_data['payload'])
+                        else:
+                            print("[!] Unknown URI received:", msg_type)
+                            
+                    elif len(client.recv(self.header_size, socket.MSG_PEEK)) == 0:
+                        print("[!] Client disconnected!")
+                        client.close()
+                        self.connected = False
                 except:
                     print("[!] Exception: ", sys.exc_info())
                     print("[!] Client disconnected!")
+                    client.close()
                     self.connected = False
         
     def stop(self):

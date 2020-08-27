@@ -1,12 +1,15 @@
 import clientConnection
 import clientDHT
 import clientVideo
+import faulthandler
 import time
 
 if __name__ == "__main__":
+    faulthandler.enable()
+    
     CONNECTION = clientConnection.Connection("192.168.1.242",49497)
-    DHT   = clientDHT.DHT(4,10)
-    VIDEO = clientVideo.Video('VGA', 24, CONNECTION)
+    DHT   = clientDHT.DHT(4, 10, CONNECTION)
+    VIDEO = clientVideo.Video((640,480), 24, CONNECTION)
         
     try:
         CONNECTION.start()

@@ -1,4 +1,5 @@
 from picamera import PiCamera
+import picamera.array
 import base64
 import clientConnection
 import datetime
@@ -22,33 +23,32 @@ class Video(threading.Thread):
         
         self.connection = connection
         self.resolution = resolution
-        self.framerate = framerate
-        self.frame = (io.BytesIO(), datetime.datetime.now().isoformat(), False)
+        self.framerate  = framerate
         self.rLock = threading.Lock()
         
     def run(self):
-        print("[+] Recording Video @", self.framerate, "fps")
         self.rLock.acquire()
         self.running = True
         self.rLock.release()
         
         with PiCamera(resolution=self.resolution, framerate=self.framerate) as camera:
-            # wait for camera to wake-up
-            print("[*] Waking Camera")
-            time.sleep(2.0)
-            print("[*] Getting Frames")
-            buffer = io.BytesIO()
+            with picamera.array.PiRGBArray(camera) as stream:
+               # wait for camera to wake-up
+                time.sleep(2.0)
+                print("[+] Recording Video")
                 
-            while self.running:
-                # reset the buffer
-                buffer.seek(0)
-                buffer.truncate()
+                while self.running:
+                    try:
+                        # reset the buffer
+                        stream.truncate(0)
                     
-                # take the frame
-                camera.capture(buffer, 'jpeg', True)
+                        # take the frame
+                        camera.capture(stream, 'rgb', True)
                 
-                # send the frame
-                self.sendFrame((buffer, datetime.datetime.now().isoformat()))
+                        # send the frame
+                        self.sendFrame((stream.array, datetime.datetime.now()))
+                    except:
+                        print("[!] Error capturing...")
                     
     def stop(self):
         print("[-] Stopping Recording Video")
@@ -57,7 +57,4 @@ class Video(threading.Thread):
         self.rLock.release()
         
     def sendFrame(self, frame):
-        frame[0].seek(0)
-        
-        # TODO: this is taking ~0.1 seconds per hit - too slow
-        self.connection.send("Frame", Make_Frame_Msg(frame[0].read(), frame[1]))
+        self.connection.send("Frame", Make_Frame_Msg(frame[0], frame[1]))
